@@ -18,9 +18,9 @@ jobs:
       run: |
         mkdir -p ~/openwrt-sdk
         cd ~/openwrt-sdk
-        curl -LO https://downloads.openwrt.org/releases/24.10.2/targets/x86/64/openwrt-sdk-24.10.2-x86-64.tar.xz
-        tar -xf openwrt-sdk-24.10.2-x86-64.tar.xz
-        cd openwrt-sdk-24.10.2-x86-64
+        curl -LO https://downloads.openwrt.org/releases/24.10.2/targets/x86/64/openwrt-sdk-24.10.2-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.zst
+        tar -xf openwrt-sdk-24.10.2-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.zst
+        cd openwrt-sdk-24.10.2-x86-64_gcc-13.3.0_musl.Linux-x86_64
         ./scripts/feeds update -a
         ./scripts/feeds install -a
 
