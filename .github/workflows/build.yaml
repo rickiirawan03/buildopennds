@@ -12,7 +12,7 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Set up OpenWrt SDK
       run: |
@@ -44,7 +44,7 @@ jobs:
         tar -czvf coova-chilli-build.tar.gz /usr/local/sbin/chilli /etc/chilli
 
     - name: Upload Build Artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: coova-chilli-build
         path: coova-chilli-build.tar.gz
