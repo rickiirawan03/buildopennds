@@ -1,0 +1,81 @@
+name: Build OpenNDS with libmicrohttpd-no-ssl (OpenWrt 24)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build-opennds:
+    runs-on: ubuntu-latest
+    env:
+      OPENWRT_BRANCH: "openwrt-24.05"
+      OPENNDS_PACKAGE: "opennds"
+      LIBMICROHTTPD_PACKAGE: "libmicrohttpd-no-ssl"
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install build dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential clang flex g++ gawk gcc-multilib \
+          gettext git libncurses5-dev libssl-dev python3-distutils python3-setuptools \
+          rsync unzip zlib1g-dev file wget
+
+    - name: Clone OpenWrt source
+      run: |
+        git clone --depth 1 --branch $OPENWRT_BRANCH https://github.com/openwrt/openwrt.git
+        cd openwrt
+        ./scripts/feeds update -a
+        ./scripts/feeds install -a
+
+    - name: Add opennds and libmicrohttpd-no-ssl packages (if needed)
+      run: |
+        cd openwrt/package
+        # Assume your opennds and libmicrohttpd-no-ssl are submodules or copied here, or use feeds.
+        # Example for local packages:
+        # ln -s $GITHUB_WORKSPACE/packages/opennds .
+        # ln -s $GITHUB_WORKSPACE/packages/libmicrohttpd-no-ssl .
+        cd ..
+
+    - name: Configure OpenWrt for opennds and libmicrohttpd-no-ssl
+      run: |
+        cd openwrt
+        # Set defaults, add target if needed (e.g. x86/64)
+        make defconfig
+        # Enable opennds and libmicrohttpd-no-ssl
+        ./scripts/feeds install $OPENNDS_PACKAGE $LIBMICROHTTPD_PACKAGE
+        # Use sed to enable the packages in .config
+        sed -i '/CONFIG_PACKAGE_'$OPENNDS_PACKAGE'/d' .config
+        sed -i '/CONFIG_PACKAGE_'$LIBMICROHTTPD_PACKAGE'/d' .config
+        echo "CONFIG_PACKAGE_${OPENNDS_PACKAGE}=y" >> .config
+        echo "CONFIG_PACKAGE_${LIBMICROHTTPD_PACKAGE}=y" >> .config
+        make defconfig
+
+    - name: Download sources
+      run: |
+        cd openwrt
+        make download -j$(nproc) V=s
+
+    - name: Build packages
+      run: |
+        cd openwrt
+        make package/${LIBMICROHTTPD_PACKAGE}/compile V=s -j$(nproc)
+        make package/${OPENNDS_PACKAGE}/compile V=s -j$(nproc)
+
+    - name: Archive OpenNDS ipk package
+      uses: actions/upload-artifact@v4
+      with:
+        name: opennds-ipk
+        path: openwrt/bin/packages/*/*/opennds_*.ipk
+        if-no-files-found: error
+
+    - name: Archive libmicrohttpd-no-ssl ipk package
+      uses: actions/upload-artifact@v4
+      with:
+        name: libmicrohttpd-no-ssl-ipk
+        path: openwrt/bin/packages/*/*/libmicrohttpd-no-ssl_*.ipk
+        if-no-files-found: error
