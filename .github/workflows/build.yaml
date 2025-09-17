@@ -1,51 +1,39 @@
-name: Build Coova-Chilli
+name: Build OpenNDS for OpenWRT
 
 on:
   push:
     branches:
       - main
-  pull_request:
+  workflow_dispatch:
 
 jobs:
-  build:
+  build-opennds:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-    - name: Set up OpenWrt SDK
+    - name: Setup OpenWRT SDK
       run: |
-        # Download OpenWrt SDK for version 24.10
-        wget https://downloads.openwrt.org/releases/24.10.2/targets/x86/64/openwrt-sdk-24.10.2-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.zst
-        # Extract the SDK
-        tar -xf openwrt-sdk-24.10.2-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.zst
-        cd openwrt-sdk-24.10.2-x86-64_gcc-13.3.0_musl.Linux-x86_64
+        mkdir -p ~/openwrt-sdk
+        cd ~/openwrt-sdk
+        curl -LO https://downloads.openwrt.org/releases/24.10.2/targets/x86/64/openwrt-sdk-24.10.2-x86-64.tar.xz
+        tar -xf openwrt-sdk-24.10.2-x86-64.tar.xz
+        cd openwrt-sdk-24.10.2-x86-64
+        ./scripts/feeds update -a
+        ./scripts/feeds install -a
 
-    - name: Install Dependencies
+    - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential libtool autoconf automake pkg-config libnl-genl-3-dev gengetopt
-  
-    - name: Clone Coova-Chilli Repository
-      run: |
-        git clone https://github.com/coova/coova-chilli.git
-        cd coova-chilli
+        sudo apt-get install -y build-essential libmicrohttpd-dev
 
-    - name: Configure and Build Coova-Chilli
+    - name: Build OpenNDS
       run: |
-        cd coova-chilli
-        ./bootstrap
-        ./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var --enable-nft
-        make
-        make install
+        cd ~/openwrt-sdk/openwrt-sdk-24.10.2-x86-64
+        make package/feeds/packages/opennds/compile V=s
 
-    - name: Archive Build Artifacts
+    - name: Verify Compatibility
       run: |
-        tar -czvf coova-chilli-build.tar.gz /usr/local/sbin/chilli /etc/chilli
-
-    - name: Upload Build Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: coova-chilli-build
-        path: coova-chilli-build.tar.gz
+        ldd ~/openwrt-sdk/openwrt-sdk-24.10.2-x86-64/bin/packages/x86_64/base/opennds*.ipk | grep "libmicrohttpd.so.12"
