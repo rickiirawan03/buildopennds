@@ -23,17 +23,15 @@ jobs:
         curl -LO https://downloads.openwrt.org/releases/24.10.2/targets/x86/64/openwrt-sdk-24.10.2-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.zst
         tar --use-compress-program=unzstd -xvf openwrt-sdk-24.10.2-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.zst
         cd openwrt-sdk-24.10.2-x86-64_gcc-13.3.0_musl.Linux-x86_64
+        echo "src-git opennds https://github.com/opennds/opennds.git" >> feeds.conf.default
         ./scripts/feeds update -a
         ./scripts/feeds install -a
+        ./scripts/feeds search opennds
 
     - name: Install Dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y build-essential libmicrohttpd-dev libncurses5-dev libncursesw5-dev
-
-    - name: Set Terminal Environment
-      run: |
-        export TERM=xterm
 
     - name: Prepare Default Config
       run: |
