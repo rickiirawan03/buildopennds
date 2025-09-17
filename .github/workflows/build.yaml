@@ -18,23 +18,39 @@ jobs:
       run: |
         mkdir -p ~/openwrt-sdk
         cd ~/openwrt-sdk
+        sudo apt-get update
+        sudo apt-get install -y zstd
         curl -LO https://downloads.openwrt.org/releases/24.10.2/targets/x86/64/openwrt-sdk-24.10.2-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.zst
-        tar -xf openwrt-sdk-24.10.2-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.zst
+        tar --use-compress-program=unzstd -xvf openwrt-sdk-24.10.2-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.zst
         cd openwrt-sdk-24.10.2-x86-64_gcc-13.3.0_musl.Linux-x86_64
         ./scripts/feeds update -a
         ./scripts/feeds install -a
 
-    - name: Install dependencies
+    - name: Install Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential libmicrohttpd-dev
+        sudo apt-get install -y build-essential libmicrohttpd-dev libncurses5-dev libncursesw5-dev
+
+    - name: Set Terminal Environment
+      run: |
+        export TERM=xterm
+
+    - name: Prepare Default Config
+      run: |
+        cd ~/openwrt-sdk/openwrt-sdk-24.10.2-x86-64_gcc-13.3.0_musl.Linux-x86_64
+        make defconfig
 
     - name: Build OpenNDS
       run: |
         cd ~/openwrt-sdk/openwrt-sdk-24.10.2-x86-64_gcc-13.3.0_musl.Linux-x86_64
-        make deconfig
         make package/feeds/packages/opennds/compile V=s
 
     - name: Verify Compatibility
       run: |
-        ldd ~/openwrt-sdk/openwrt-sdk-24.10.2-x86-64_gcc-13.3.0_musl.Linux-x86_64/bin/packages/x86_64/base/opennds*.ipk | grep "libmicrohttpd.so.12"
+        FILE=$(find ~/openwrt-sdk/openwrt-sdk-24.10.2-x86-64_gcc-13.3.0_musl.Linux-x86_64/bin/packages/x86_64/base -name "opennds*.ipk" | head -n 1)
+        if [ -z "$FILE" ]; then
+          echo "Error: No .ipk file found for opennds!"
+          exit 1
+        else
+          ldd "$FILE" | grep "libmicrohttpd.so.12"
+        fi
