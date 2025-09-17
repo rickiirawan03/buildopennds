@@ -31,9 +31,9 @@ jobs:
 
     - name: Build OpenNDS
       run: |
-        cd ~/openwrt-sdk/openwrt-sdk-24.10.2-x86-64
+        cd ~/openwrt-sdk/openwrt-sdk-24.10.2-x86-64_gcc-13.3.0_musl.Linux-x86_64
         make package/feeds/packages/opennds/compile V=s
 
     - name: Verify Compatibility
       run: |
-        ldd ~/openwrt-sdk/openwrt-sdk-24.10.2-x86-64/bin/packages/x86_64/base/opennds*.ipk | grep "libmicrohttpd.so.12"
+        ldd ~/openwrt-sdk/openwrt-sdk-24.10.2-x86-64_gcc-13.3.0_musl.Linux-x86_64/bin/packages/x86_64/base/opennds*.ipk | grep "libmicrohttpd.so.12"
