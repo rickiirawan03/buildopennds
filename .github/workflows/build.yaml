@@ -10,7 +10,7 @@ jobs:
   build-opennds:
     runs-on: ubuntu-latest
     env:
-      OPENWRT_BRANCH: "openwrt-24.10.2"
+      OPENWRT_BRANCH: "openwrt-24.05"
       OPENNDS_PACKAGE: "opennds"
       LIBMICROHTTPD_PACKAGE: "libmicrohttpd-no-ssl"
 
