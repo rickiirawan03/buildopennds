@@ -10,7 +10,7 @@ jobs:
   build-opennds:
     runs-on: ubuntu-latest
     env:
-      OPENWRT_BRANCH: "openwrt-24.05"
+      OPENWRT_BRANCH: "openwrt-24.10.2"
       OPENNDS_PACKAGE: "opennds"
       LIBMICROHTTPD_PACKAGE: "libmicrohttpd-no-ssl"
 
@@ -27,7 +27,7 @@ jobs:
 
     - name: Clone OpenWrt source
       run: |
-        git clone --depth 1 --branch $OPENWRT_BRANCH https://github.com/openwrt/openwrt.git
+        git clone --depth 1 --branch $OPENWRT_BRANCH https://git.openwrt.org/openwrt/openwrt.git
         cd openwrt
         ./scripts/feeds update -a
         ./scripts/feeds install -a
