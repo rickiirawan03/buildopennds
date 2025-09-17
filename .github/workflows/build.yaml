@@ -1,81 +1,50 @@
-name: Build OpenNDS with libmicrohttpd-no-ssl (OpenWrt 24)
+name: Build Coova-Chilli
 
 on:
-  workflow_dispatch:
   push:
-    branches: [ main ]
+    branches:
+      - main
   pull_request:
 
 jobs:
-  build-opennds:
+  build:
     runs-on: ubuntu-latest
-    env:
-      OPENWRT_BRANCH: "openwrt-24.10"
-      OPENNDS_PACKAGE: "opennds"
-      LIBMICROHTTPD_PACKAGE: "libmicrohttpd-no-ssl"
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v3
 
-    - name: Install build dependencies
+    - name: Set up OpenWrt SDK
+      run: |
+        # Download OpenWrt SDK for version 24.10
+        wget https://downloads.openwrt.org/releases/24.10.0/targets/x86/64/openwrt-sdk-24.10.0-x86-64.tar.xz
+        # Extract the SDK
+        tar -xf openwrt-sdk-24.10.0-x86-64.tar.xz
+        cd openwrt-sdk-24.10.0-x86-64
+
+    - name: Install Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential clang flex g++ gawk gcc-multilib \
-          gettext git libncurses5-dev libssl-dev python3 python3-setuptools \
-          rsync unzip zlib1g-dev file wget
+        sudo apt-get install -y build-essential libtool autoconf automake pkg-config libnl-genl-3-dev
 
-    - name: Clone OpenWrt source
+    - name: Clone Coova-Chilli Repository
       run: |
-        git clone --depth 1 --branch $OPENWRT_BRANCH https://git.openwrt.org/openwrt/openwrt.git
-        cd openwrt
-        ./scripts/feeds update -a
-        ./scripts/feeds install -a
+        git clone https://github.com/coova/coova-chilli.git
+        cd coova-chilli
 
-    - name: Add opennds and libmicrohttpd-no-ssl packages (if needed)
+    - name: Configure and Build Coova-Chilli
       run: |
-        cd openwrt/package
-        # Assume your opennds and libmicrohttpd-no-ssl are submodules or copied here, or use feeds.
-        # Example for local packages:
-        # ln -s $GITHUB_WORKSPACE/packages/opennds .
-        # ln -s $GITHUB_WORKSPACE/packages/libmicrohttpd-no-ssl .
-        cd ..
+        ./bootstrap
+        ./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var --enable-nft
+        make
+        make install
 
-    - name: Configure OpenWrt for opennds and libmicrohttpd-no-ssl
+    - name: Archive Build Artifacts
       run: |
-        cd openwrt
-        # Set defaults, add target if needed (e.g. x86/64)
-        make defconfig
-        # Enable opennds and libmicrohttpd-no-ssl
-        ./scripts/feeds install $OPENNDS_PACKAGE $LIBMICROHTTPD_PACKAGE
-        # Use sed to enable the packages in .config
-        sed -i '/CONFIG_PACKAGE_'$OPENNDS_PACKAGE'/d' .config
-        sed -i '/CONFIG_PACKAGE_'$LIBMICROHTTPD_PACKAGE'/d' .config
-        echo "CONFIG_PACKAGE_${OPENNDS_PACKAGE}=y" >> .config
-        echo "CONFIG_PACKAGE_${LIBMICROHTTPD_PACKAGE}=y" >> .config
-        make defconfig
+        tar -czvf coova-chilli-build.tar.gz /usr/local/sbin/chilli /etc/chilli
 
-    - name: Download sources
-      run: |
-        cd openwrt
-        make download -j$(nproc) V=s
-
-    - name: Build packages
-      run: |
-        cd openwrt
-        make package/${LIBMICROHTTPD_PACKAGE}/compile V=s -j$(nproc)
-        make package/${OPENNDS_PACKAGE}/compile V=s -j$(nproc)
-
-    - name: Archive OpenNDS ipk package
-      uses: actions/upload-artifact@v4
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v3
       with:
-        name: opennds-ipk
-        path: openwrt/bin/packages/*/*/opennds_*.ipk
-        if-no-files-found: error
-
-    - name: Archive libmicrohttpd-no-ssl ipk package
-      uses: actions/upload-artifact@v4
-      with:
-        name: libmicrohttpd-no-ssl-ipk
-        path: openwrt/bin/packages/*/*/libmicrohttpd-no-ssl_*.ipk
-        if-no-files-found: error
+        name: coova-chilli-build
+        path: coova-chilli-build.tar.gz
