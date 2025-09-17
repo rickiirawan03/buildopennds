@@ -32,6 +32,7 @@ jobs:
     - name: Build OpenNDS
       run: |
         cd ~/openwrt-sdk/openwrt-sdk-24.10.2-x86-64_gcc-13.3.0_musl.Linux-x86_64
+        make deconfig
         make package/feeds/packages/opennds/compile V=s
 
     - name: Verify Compatibility
