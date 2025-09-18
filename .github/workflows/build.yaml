@@ -1,10 +1,7 @@
-name: Build openNDS for ImmortalWrt 24.10.2
+name: Build openNDS v10.3.1 for ImmortalWrt 24.10.2 (x86_64)
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
 
 jobs:
   build:
@@ -14,30 +11,31 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Install build dependencies
         run: |
           sudo apt update
           sudo apt install -y build-essential clang flex bison g++ gawk \
             gcc-multilib g++-multilib gettext git libncurses5-dev \
-            libssl-dev python3-distutils rsync unzip zlib1g-dev wget curl
+            libssl-dev python3-distutils rsync unzip zlib1g-dev wget curl \
+            xz-utils zstd
 
       - name: Download ImmortalWrt SDK
         run: |
-          wget https://downloads.immortalwrt.org/releases/24.10.2/targets/x86/64/immortalwrt-sdk-24.10.2-x86-64_gcc-12.3.0_musl.Linux-x86_64.tar.xz
-          tar -Jxf immortalwrt-sdk-24.10.2-x86-64_gcc-12.3.0_musl.Linux-x86_64.tar.xz
-          mv immortalwrt-sdk-24.10.2-x86-64_gcc-12.3.0_musl.Linux-x86_64 sdk
+          wget https://downloads.immortalwrt.org/releases/24.10.2/targets/x86/64/immortalwrt-sdk-24.10.2-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.zst
+          tar --use-compress-program=unzstd -xf immortalwrt-sdk-24.10.2-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.zst
+          mv immortalwrt-sdk-24.10.2-x86-64_gcc-13.3.0_musl.Linux-x86_64 sdk
 
-      - name: Prepare package opennds
+      - name: Prepare opennds package
         run: |
           cd sdk/package
           mkdir opennds
           cd opennds
           wget https://github.com/openNDS/openNDS/archive/refs/tags/v10.3.1.zip
           unzip v10.3.1.zip
-          mv openNDS-10.3.1 src
-          rm v10.3.1.zip
+          mv openNDS-10.3.1/* .
+          rm -rf v10.3.1.zip openNDS-10.3.1
 
-          # Buat Makefile untuk OpenWrt/ImmortalWrt
+          # Buat Makefile untuk opennds
           cat << 'EOF' > Makefile
           include $(TOPDIR)/rules.mk
 
@@ -45,9 +43,8 @@ jobs:
           PKG_VERSION:=10.3.1
           PKG_RELEASE:=1
 
-          PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
           PKG_SOURCE_URL:=https://github.com/openNDS/openNDS/archive/refs/tags
-          PKG_SOURCE_VERSION:=v$(PKG_VERSION)
+          PKG_SOURCE:=v$(PKG_VERSION).tar.gz
           PKG_HASH:=skip
 
           PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(PKG_VERSION)
@@ -63,10 +60,6 @@ jobs:
 
           define Package/opennds/description
             OpenNDS (Open Network Demarcation Service) - a high performance, small footprint Captive Portal.
-          endef
-
-          define Build/Prepare
-            tar -C $(BUILD_DIR) -xf $(DL_DIR)/$(PKG_SOURCE)
           endef
 
           define Build/Compile
