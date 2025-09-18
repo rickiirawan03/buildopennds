@@ -1,54 +1,99 @@
-name: Build OpenNDS for OpenWRT
+name: Build openNDS for ImmortalWrt 24.10.2
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
-  workflow_dispatch:
 
 jobs:
-  build-opennds:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-22.04
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Setup OpenWRT SDK
-      run: |
-        mkdir -p ~/openwrt-sdk
-        cd ~/openwrt-sdk
-        sudo apt-get update
-        sudo apt-get install -y zstd
-        curl -LO https://downloads.openwrt.org/releases/24.10.2/targets/x86/64/openwrt-sdk-24.10.2-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.zst
-        tar --use-compress-program=unzstd -xvf openwrt-sdk-24.10.2-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.zst
-        cd openwrt-sdk-24.10.2-x86-64_gcc-13.3.0_musl.Linux-x86_64
-        echo "src-git opennds https://github.com/opennds/opennds.git" >> feeds.conf.default
-        ./scripts/feeds update -a
-        ./scripts/feeds install -a
-        ./scripts/feeds search opennds
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential clang flex bison g++ gawk \
+            gcc-multilib g++-multilib gettext git libncurses5-dev \
+            libssl-dev python3-distutils rsync unzip zlib1g-dev wget curl
 
-    - name: Install Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y build-essential libmicrohttpd-dev libncurses5-dev libncursesw5-dev
+      - name: Download ImmortalWrt SDK
+        run: |
+          wget https://downloads.immortalwrt.org/releases/24.10.2/targets/x86/64/immortalwrt-sdk-24.10.2-x86-64_gcc-12.3.0_musl.Linux-x86_64.tar.xz
+          tar -Jxf immortalwrt-sdk-24.10.2-x86-64_gcc-12.3.0_musl.Linux-x86_64.tar.xz
+          mv immortalwrt-sdk-24.10.2-x86-64_gcc-12.3.0_musl.Linux-x86_64 sdk
 
-    - name: Prepare Default Config
-      run: |
-        cd ~/openwrt-sdk/openwrt-sdk-24.10.2-x86-64_gcc-13.3.0_musl.Linux-x86_64
-        make defconfig
+      - name: Prepare package opennds
+        run: |
+          cd sdk/package
+          mkdir opennds
+          cd opennds
+          wget https://github.com/openNDS/openNDS/archive/refs/tags/v10.3.1.zip
+          unzip v10.3.1.zip
+          mv openNDS-10.3.1 src
+          rm v10.3.1.zip
 
-    - name: Build OpenNDS
-      run: |
-        cd ~/openwrt-sdk/openwrt-sdk-24.10.2-x86-64_gcc-13.3.0_musl.Linux-x86_64
-        make package/feeds/packages/opennds/compile V=s
+          # Buat Makefile untuk OpenWrt/ImmortalWrt
+          cat << 'EOF' > Makefile
+          include $(TOPDIR)/rules.mk
 
-    - name: Verify Compatibility
-      run: |
-        FILE=$(find ~/openwrt-sdk/openwrt-sdk-24.10.2-x86-64_gcc-13.3.0_musl.Linux-x86_64/bin/packages/x86_64/base -name "opennds*.ipk" | head -n 1)
-        if [ -z "$FILE" ]; then
-          echo "Error: No .ipk file found for opennds!"
-          exit 1
-        else
-          ldd "$FILE" | grep "libmicrohttpd.so.12"
-        fi
+          PKG_NAME:=opennds
+          PKG_VERSION:=10.3.1
+          PKG_RELEASE:=1
+
+          PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
+          PKG_SOURCE_URL:=https://github.com/openNDS/openNDS/archive/refs/tags
+          PKG_SOURCE_VERSION:=v$(PKG_VERSION)
+          PKG_HASH:=skip
+
+          PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(PKG_VERSION)
+
+          include $(INCLUDE_DIR)/package.mk
+
+          define Package/opennds
+            SECTION:=net
+            CATEGORY:=Network
+            TITLE:=openNDS - Open Network Demarcation Service
+            DEPENDS:=+libmicrohttpd-no-ssl
+          endef
+
+          define Package/opennds/description
+            OpenNDS (Open Network Demarcation Service) - a high performance, small footprint Captive Portal.
+          endef
+
+          define Build/Prepare
+            tar -C $(BUILD_DIR) -xf $(DL_DIR)/$(PKG_SOURCE)
+          endef
+
+          define Build/Compile
+            $(MAKE) -C $(PKG_BUILD_DIR) \
+              CC="$(TARGET_CC)" \
+              CFLAGS="$(TARGET_CFLAGS)" \
+              LDFLAGS="$(TARGET_LDFLAGS)"
+          endef
+
+          define Package/opennds/install
+            $(INSTALL_DIR) $(1)/usr/sbin
+            $(INSTALL_BIN) $(PKG_BUILD_DIR)/src/opennds $(1)/usr/sbin/
+          endef
+
+          $(eval $(call BuildPackage,opennds))
+          EOF
+
+      - name: Build package
+        run: |
+          cd sdk
+          ./scripts/feeds update -a
+          ./scripts/feeds install libmicrohttpd-no-ssl
+          make defconfig
+          make package/opennds/compile V=s
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: opennds-10.3.1-ipk
+          path: sdk/bin/packages/*/base/opennds_*.ipk
