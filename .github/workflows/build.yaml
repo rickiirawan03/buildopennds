@@ -34,7 +34,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential clang flex bison g++ gawk gcc-multilib \
-          gettext git libncurses5-dev libssl-dev python3-distutils rsync subversion \
+          gettext git libncurses5-dev libssl-dev python3-setuptools rsync subversion \
           unzip zlib1g-dev zstd
 
       # Langkah 3: Unduh SDK OpenWrt
