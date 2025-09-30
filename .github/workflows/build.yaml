@@ -1,92 +1,88 @@
-name: Build openNDS v10.3.1 for ImmortalWrt 24.10.2 (x86_64)
+# Nama Workflow yang akan tampil di tab Actions GitHub
+name: Build OpenWrt Package (php8-mod-pecl-radius for x86/64)
 
+# Pemicu (trigger) kapan workflow ini akan berjalan
 on:
+  # Berjalan saat ada push ke branch 'main'
+  push:
+    branches:
+      - main
+  # Memungkinkan untuk menjalankan workflow ini secara manual dari UI GitHub
   workflow_dispatch:
+
+# Variabel lingkungan (environment variables) untuk mempermudah konfigurasi
+env:
+  SDK_URL: https://downloads.openwrt.org/releases/24.10.3/targets/x86/64/openwrt-sdk-24.10.3-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.zst
+  SDK_FILENAME: openwrt-sdk-24.10.3-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.zst
+  SDK_DIR: openwrt-sdk-24.10.3-x86-64_gcc-13.3.0_musl.Linux-x86_64
+  # --- NAMA PAKET DIPERBAIKI DI SINI ---
+  PACKAGE_NAME: php8-mod-pecl-radius
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    # Menggunakan runner Ubuntu versi terbaru yang disediakan GitHub
+    runs-on: ubuntu-latest
 
     steps:
+      # Langkah 1: Checkout kode dari repository Anda
+      # Ini penting agar sumber kode package Anda bisa diakses oleh workflow
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Langkah 2: Instal dependensi yang dibutuhkan untuk kompilasi OpenWrt
       - name: Install build dependencies
         run: |
-          sudo apt update
-          sudo apt install -y build-essential clang flex bison g++ gawk \
-            gcc-multilib g++-multilib gettext git libncurses5-dev \
-            libssl-dev python3-distutils rsync unzip zlib1g-dev wget curl \
-            xz-utils zstd
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang flex bison g++ gawk gcc-multilib \
+          gettext git libncurses5-dev libssl-dev python3-distutils rsync subversion \
+          unzip zlib1g-dev zstd
 
-      - name: Download ImmortalWrt SDK
+      # Langkah 3: Unduh SDK OpenWrt
+      - name: Download OpenWrt SDK
+        run: wget -q "${{ env.SDK_URL }}" -O "${{ env.SDK_FILENAME }}"
+
+      # Langkah 4: Ekstrak arsip SDK
+      - name: Extract SDK
+        run: tar -I zstd -xf "${{ env.SDK_FILENAME }}"
+
+      # Langkah 5: Pindahkan sumber kode package Anda ke dalam direktori SDK
+      # PENTING: Pastikan folder sumber kode di repository Anda bernama 'php8-mod-pecl-radius'
+      - name: Copy package source to SDK
         run: |
-          wget https://downloads.immortalwrt.org/releases/24.10.2/targets/x86/64/immortalwrt-sdk-24.10.2-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.zst
-          tar --use-compress-program=unzstd -xf immortalwrt-sdk-24.10.2-x86-64_gcc-13.3.0_musl.Linux-x86_64.tar.zst
-          mv immortalwrt-sdk-24.10.2-x86-64_gcc-13.3.0_musl.Linux-x86_64 sdk
+          echo "Copying package from ${{ github.workspace }}/${{ env.PACKAGE_NAME }} to ${{ env.SDK_DIR }}/package/"
+          cp -r "${{ github.workspace }}/${{ env.PACKAGE_NAME }}" "${{ env.SDK_DIR }}/package/"
 
-      - name: Prepare opennds package
+      # Langkah 6: Update & install feeds
+      - name: Update and install feeds
+        working-directory: ${{ env.SDK_DIR }}
         run: |
-          cd sdk/package
-          mkdir opennds
-          cd opennds
-          wget https://github.com/openNDS/openNDS/archive/refs/tags/v10.3.1.zip
-          unzip v10.3.1.zip
-          mv openNDS-10.3.1/* .
-          rm -rf v10.3.1.zip openNDS-10.3.1
-
-          # Buat Makefile untuk opennds
-          cat << 'EOF' > Makefile
-          include $(TOPDIR)/rules.mk
-
-          PKG_NAME:=opennds
-          PKG_VERSION:=10.3.1
-          PKG_RELEASE:=1
-
-          PKG_SOURCE_URL:=https://github.com/openNDS/openNDS/archive/refs/tags
-          PKG_SOURCE:=v$(PKG_VERSION).tar.gz
-          PKG_HASH:=skip
-
-          PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(PKG_VERSION)
-
-          include $(INCLUDE_DIR)/package.mk
-
-          define Package/opennds
-            SECTION:=net
-            CATEGORY:=Network
-            TITLE:=openNDS - Open Network Demarcation Service
-            DEPENDS:=+libmicrohttpd-no-ssl
-          endef
-
-          define Package/opennds/description
-            OpenNDS (Open Network Demarcation Service) - a high performance, small footprint Captive Portal.
-          endef
-
-          define Build/Compile
-            $(MAKE) -C $(PKG_BUILD_DIR) \
-              CC="$(TARGET_CC)" \
-              CFLAGS="$(TARGET_CFLAGS)" \
-              LDFLAGS="$(TARGET_LDFLAGS)"
-          endef
-
-          define Package/opennds/install
-            $(INSTALL_DIR) $(1)/usr/sbin
-            $(INSTALL_BIN) $(PKG_BUILD_DIR)/src/opennds $(1)/usr/sbin/
-          endef
-
-          $(eval $(call BuildPackage,opennds))
-          EOF
-
-      - name: Build package
-        run: |
-          cd sdk
           ./scripts/feeds update -a
-          ./scripts/feeds install libmicrohttpd-no-ssl
-          make defconfig
-          make package/opennds/compile V=s
+          ./scripts/feeds install -a
+          # Memastikan package kita dikenal oleh sistem build
+          ./scripts/feeds install ${{ env.PACKAGE_NAME }}
 
-      - name: Upload artifacts
+      # Langkah 7: Buat konfigurasi default
+      - name: Generate .config
+        working-directory: ${{ env.SDK_DIR }}
+        run: make defconfig
+
+      # Langkah 8: Kompilasi package spesifik
+      # V=s akan memberikan output log yang lebih detail untuk debugging
+      - name: Compile the package
+        working-directory: ${{ env.SDK_DIR }}
+        run: make "package/${{ env.PACKAGE_NAME }}/compile" V=s
+
+      # Langkah 9: Cari file .ipk yang sudah jadi dan siapkan untuk diunggah
+      - name: Prepare artifact
+        working-directory: ${{ env.SDK_DIR }}
+        run: |
+          mkdir -p artifacts
+          find bin -type f -name "*.ipk" -exec cp {} artifacts/ \;
+
+      # Langkah 10: Unggah hasil kompilasi (.ipk) sebagai artifact
+      - name: Upload IPK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: opennds-10.3.1-ipk
-          path: sdk/bin/packages/*/base/opennds_*.ipk
+          name: ${{ env.PACKAGE_NAME }}-ipk-x86_64
+          path: ${{ env.SDK_DIR }}/artifacts/
+
